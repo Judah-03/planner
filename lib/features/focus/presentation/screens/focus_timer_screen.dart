@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:confetti/confetti.dart';
 import 'package:planner/core/constants/app_colors.dart';
 import 'package:planner/features/focus/presentation/providers/focus_provider.dart';
 
@@ -21,17 +22,20 @@ class _FocusTimerScreenState extends ConsumerState<FocusTimerScreen> with Ticker
   Timer? _timer;
 
   late AnimationController _progressController;
+  late ConfettiController _confettiController;
 
   @override
   void initState() {
     super.initState();
     _progressController = AnimationController(vsync: this, duration: const Duration(seconds: 1));
+    _confettiController = ConfettiController(duration: const Duration(seconds: 3));
   }
 
   @override
   void dispose() {
     _timer?.cancel();
     _progressController.dispose();
+    _confettiController.dispose();
     super.dispose();
   }
 
@@ -46,7 +50,11 @@ class _FocusTimerScreenState extends ConsumerState<FocusTimerScreen> with Ticker
         // Save session to backend
         final duration = _isWorkTime ? _workDuration : _breakDuration;
         final type = _isWorkTime ? 'work' : 'break';
-        ref.read(focusProvider.notifier).recordSession(duration ~/ 60, type);
+        ref.read(focusProvider.notifier).addSession(duration ~/ 60, type);
+
+        if (_isWorkTime) {
+          _confettiController.play();
+        }
 
         setState(() {
           _isRunning = false;
@@ -98,8 +106,10 @@ class _FocusTimerScreenState extends ConsumerState<FocusTimerScreen> with Ticker
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      body: SafeArea(
-        child: Column(
+      body: Stack(
+        children: [
+          SafeArea(
+            child: Column(
           children: [
             const SizedBox(height: 40),
             Container(
@@ -207,6 +217,17 @@ class _FocusTimerScreenState extends ConsumerState<FocusTimerScreen> with Ticker
           ],
         ),
       ),
-    );
+      Align(
+        alignment: Alignment.topCenter,
+        child: ConfettiWidget(
+          confettiController: _confettiController,
+          blastDirectionality: BlastDirectionality.explosive,
+          shouldLoop: false,
+          colors: const [AppColors.primary, AppColors.secondary, Colors.orange, Colors.purple],
+        ),
+      ),
+    ],
+  ),
+);
   }
 }

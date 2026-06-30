@@ -1,27 +1,61 @@
+import 'dart:io';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:confetti/confetti.dart';
 import 'package:planner/core/constants/app_colors.dart';
+import 'package:intl/intl.dart';
 import 'package:planner/presentation/providers/theme_provider.dart';
 import 'package:planner/features/auth/presentation/providers/user_provider.dart';
 import 'package:planner/features/exams/presentation/providers/exams_provider.dart';
 import 'package:planner/features/rooms/presentation/providers/rooms_provider.dart';
 import 'package:planner/domain/entities/exam.dart';
 import 'package:planner/features/exams/presentation/screens/exam_detail_screen.dart';
-import 'package:planner/core/network/api_service.dart';
 import 'package:planner/presentation/providers/navigation_provider.dart';
-import 'package:planner/features/results/presentation/screens/results_screen.dart';
+import 'package:planner/features/dashboard/presentation/widgets/readiness_widget.dart';
 import 'package:planner/features/focus/presentation/screens/focus_timer_screen.dart';
 import 'package:planner/features/focus/presentation/providers/focus_provider.dart';
+import 'package:planner/features/dashboard/presentation/screens/ai_assistant_screen.dart';
+import 'package:planner/core/localization/app_localizations.dart';
+import 'package:planner/features/profile/presentation/providers/language_provider.dart';
 
-class DashboardScreen extends ConsumerWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  late ConfettiController _confettiController;
+  int _lastStreak = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    _confettiController = ConfettiController(duration: const Duration(seconds: 3));
+  }
+
+  @override
+  void dispose() {
+    _confettiController.dispose();
+    super.dispose();
+  }
+
+  void _checkStreakMilestone(int streak) {
+    if (_lastStreak != -1 && streak > _lastStreak && (streak == 3 || streak == 7 || streak % 30 == 0)) {
+      _confettiController.play();
+    }
+    _lastStreak = streak;
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final user = ref.watch(userProvider);
     final allExams = ref.watch(examsProvider);
     final rooms = ref.watch(roomsProvider);
+    final langCode = ref.watch(languageProvider);
 
     // Calculs statistiques
     final now = DateTime.now();
@@ -31,6 +65,13 @@ class DashboardScreen extends ConsumerWidget {
     // Sort upcoming exams to find the next one
     upcomingExams.sort((a, b) => a.date.compareTo(b.date));
     final nextExams = upcomingExams.take(3).toList();
+
+    // Check milestone if loaded
+    final stats = ref.watch(focusProvider);
+    if (stats != null) {
+      // Use microtask to avoid setState during build
+      Future.microtask(() => _checkStreakMilestone(stats.currentStreak));
+    }
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
@@ -55,9 +96,9 @@ class DashboardScreen extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _AnimatedEntry(delay: 0, child: _buildTopBar(context, ref, user)),
+                        _AnimatedEntry(delay: 0, child: _buildTopBar(context, ref, user, langCode)),
                         const SizedBox(height: 32),
-                        _AnimatedEntry(delay: 100, child: _buildWelcomeSection(context, user)),
+                        _AnimatedEntry(delay: 100, child: _buildWelcomeSection(context, user, langCode)),
                         const SizedBox(height: 32),
                         _AnimatedEntry(
                           delay: 300, 
@@ -66,10 +107,13 @@ class DashboardScreen extends ConsumerWidget {
                             upcomingExams.length.toString(), 
                             availableRooms.toString(),
                             ref.watch(focusProvider)?.todayMinutes.toString() ?? '0',
+                            langCode
                           )
                         ),
                         const SizedBox(height: 32),
-                        _AnimatedEntry(delay: 400, child: _buildSectionHeader(context, "Prochains Examens", true, ref: ref, targetIndex: 1)),
+                        _AnimatedEntry(delay: 350, child: const ReadinessWidget()),
+                        const SizedBox(height: 32),
+                        _AnimatedEntry(delay: 400, child: _buildSectionHeader(context, AppLocalizations.get('upcoming_exams', langCode), true, ref: ref, targetIndex: 1)),
                         const SizedBox(height: 16),
                       ],
                     ),
@@ -82,10 +126,6 @@ class DashboardScreen extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _AnimatedEntry(delay: 500, child: _buildSectionHeader(context, "Actions Rapides", false, ref: ref)),
-                        const SizedBox(height: 16),
-                        _AnimatedEntry(delay: 600, child: _buildQuickActionsRow(context, ref)),
-                        const SizedBox(height: 32),
                         _AnimatedEntry(delay: 700, child: _buildSectionHeader(context, "Conseils d'Étude", false, ref: ref)),
                         const SizedBox(height: 16),
                         _AnimatedEntry(
@@ -106,14 +146,43 @@ class DashboardScreen extends ConsumerWidget {
               ],
             ),
           ),
+          Align(
+            alignment: Alignment.topCenter,
+            child: ConfettiWidget(
+              confettiController: _confettiController,
+              blastDirection: pi / 2, // down
+              maxBlastForce: 5,
+              minBlastForce: 2,
+              emissionFrequency: 0.05,
+              numberOfParticles: 50,
+              gravity: 0.1,
+            ),
+          ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const AiAssistantScreen()));
+        },
+        backgroundColor: AppColors.primary,
+        icon: const Icon(Icons.auto_awesome, color: Colors.white),
+        label: Text(AppLocalizations.get('ai_assistant', langCode), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
     );
   }
 
-  Widget _buildTopBar(BuildContext context, WidgetRef ref, UserData? user) {
+  Widget _buildTopBar(BuildContext context, WidgetRef ref, UserData? user, String langCode) {
     final initials = user != null ? user.fullName.split(' ').map((e) => e[0]).take(2).join().toUpperCase() : '??';
-    final imageUrl = user?.profileImage != null ? '${ApiService.serverBaseUrl}${user!.profileImage}' : null;
+    // Support both local file paths and network URLs
+    ImageProvider? profileImageProvider;
+    if (user?.profileImage != null && user!.profileImage!.isNotEmpty) {
+      final path = user.profileImage!;
+      if (path.startsWith('http')) {
+        profileImageProvider = NetworkImage(path);
+      } else if (File(path).existsSync()) {
+        profileImageProvider = FileImage(File(path));
+      }
+    }
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -125,11 +194,11 @@ class DashboardScreen extends ConsumerWidget {
               height: 50,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: imageUrl == null ? AppColors.primaryGradient : null,
-                image: imageUrl != null ? DecorationImage(image: NetworkImage(imageUrl), fit: BoxFit.cover) : null,
+                gradient: profileImageProvider == null ? AppColors.primaryGradient : null,
+                image: profileImageProvider != null ? DecorationImage(image: profileImageProvider, fit: BoxFit.cover) : null,
                 boxShadow: [BoxShadow(color: AppColors.primary.withValues(alpha: 0.4), blurRadius: 15, offset: const Offset(0, 5))],
               ),
-              child: imageUrl == null 
+              child: profileImageProvider == null 
                 ? Center(child: Text(initials, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)))
                 : null,
             ),
@@ -143,25 +212,48 @@ class DashboardScreen extends ConsumerWidget {
             ),
           ],
         ),
-        Container(
-          decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(15)),
-          child: IconButton(
-            icon: Icon(Theme.of(context).brightness == Brightness.dark ? Icons.light_mode_rounded : Icons.dark_mode_rounded, color: AppColors.primary, size: 22),
-            onPressed: () => ref.read(themeProvider.notifier).toggleTheme(),
-          ),
+        Row(
+          children: [
+            if (ref.watch(focusProvider)?.currentStreak != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: ref.watch(focusProvider)!.currentStreak > 0 ? Colors.orange.withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: ref.watch(focusProvider)!.currentStreak > 0 ? Colors.orange.withValues(alpha: 0.3) : Colors.grey.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.local_fire_department_rounded, color: ref.watch(focusProvider)!.currentStreak > 0 ? Colors.orange : Colors.grey, size: 20),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${ref.watch(focusProvider)!.currentStreak}',
+                      style: TextStyle(color: ref.watch(focusProvider)!.currentStreak > 0 ? Colors.orange : Colors.grey, fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(width: 8),
+            Container(
+              decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(15)),
+              child: IconButton(
+                icon: Icon(Theme.of(context).brightness == Brightness.dark ? Icons.light_mode_rounded : Icons.dark_mode_rounded, color: AppColors.primary, size: 22),
+                onPressed: () => ref.read(themeProvider.notifier).toggleTheme(),
+              ),
+            ),
+          ],
         ),
       ],
     );
   }
 
-  Widget _buildWelcomeSection(BuildContext context, UserData? user) {
-    final firstName = user != null ? user.fullName.split(' ')[0] : 'Student';
+  Widget _buildWelcomeSection(BuildContext context, UserData? user, String langCode) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         ShaderMask(
           shaderCallback: (bounds) => AppColors.primaryGradient.createShader(bounds),
-          child: Text('BONJOUR, $firstName! 👋', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 2, fontSize: 13)),
+          child: Text('${AppLocalizations.get('welcome', langCode).toUpperCase()} EXAMPLANNERJ', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 2, fontSize: 13)),
         ),
         const SizedBox(height: 8),
         Text(
@@ -172,13 +264,13 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatsSection(BuildContext context, String examsCount, String roomsCount, String focusMinutes) {
+  Widget _buildStatsSection(BuildContext context, String examsCount, String roomsCount, String focusMinutes, String langCode) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       physics: const BouncingScrollPhysics(),
       child: Row(
         children: [
-          _buildEnhancedStatCard(context, examsCount, "Examens", Icons.assignment_rounded, AppColors.primary),
+          _buildEnhancedStatCard(context, examsCount, AppLocalizations.get('exams', langCode), Icons.assignment_rounded, AppColors.primary),
           const SizedBox(width: 16),
           _buildEnhancedStatCard(context, roomsCount, "Salles", Icons.meeting_room_rounded, AppColors.secondary),
           const SizedBox(width: 16),
@@ -276,7 +368,7 @@ class DashboardScreen extends ConsumerWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(14)),
-              child: Text(exam.time, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900)),
+              child: Text('${DateFormat('dd MMM', 'fr_FR').format(exam.date)} • ${exam.time}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900)),
             ),
             const Spacer(),
             Text(exam.subject, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900, height: 1)),
@@ -290,35 +382,6 @@ class DashboardScreen extends ConsumerWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildQuickActionsRow(BuildContext context, WidgetRef ref) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        _buildQuickAction(context, "Examens", Icons.assignment_rounded, AppColors.primary, onTap: () => ref.read(navigationProvider.notifier).state = 1),
-        _buildQuickAction(context, "Salles", Icons.meeting_room_rounded, AppColors.secondary, onTap: () => ref.read(navigationProvider.notifier).state = 2),
-        _buildQuickAction(context, "Calendrier", Icons.calendar_today_rounded, AppColors.accent, onTap: () => ref.read(navigationProvider.notifier).state = 3),
-        _buildQuickAction(context, "Résultats", Icons.grading_rounded, Colors.orange, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ResultsScreen()))),
-      ],
-    );
-  }
-
-  Widget _buildQuickAction(BuildContext context, String label, IconData icon, Color color, {required VoidCallback onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        children: [
-          Container(
-            width: 64, height: 64,
-            decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(22), border: Border.all(color: color.withValues(alpha: 0.1), width: 2)),
-            child: Icon(icon, color: color, size: 28),
-          ),
-          const SizedBox(height: 10),
-          Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900)),
-        ],
       ),
     );
   }

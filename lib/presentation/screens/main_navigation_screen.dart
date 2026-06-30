@@ -8,6 +8,8 @@ import 'package:planner/core/constants/app_colors.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:planner/presentation/providers/navigation_provider.dart';
+import 'package:planner/features/profile/presentation/providers/language_provider.dart';
+import 'package:planner/core/localization/app_localizations.dart';
 
 class MainNavigationScreen extends ConsumerWidget {
   const MainNavigationScreen({super.key});
@@ -16,6 +18,7 @@ class MainNavigationScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedIndex = ref.watch(navigationProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final langCode = ref.watch(languageProvider);
 
     final List<Widget> screens = [
       const DashboardScreen(),
@@ -30,12 +33,9 @@ class MainNavigationScreen extends ConsumerWidget {
     }
 
     return Scaffold(
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        child: KeyedSubtree(
-          key: ValueKey<int>(selectedIndex),
-          child: screens[selectedIndex],
-        ),
+      body: IndexedStack(
+        index: selectedIndex,
+        children: screens,
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -57,31 +57,31 @@ class MainNavigationScreen extends ConsumerWidget {
           selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
           unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
           elevation: 0,
-          items: const [
+          items: [
             BottomNavigationBarItem(
-              icon: Icon(Icons.dashboard_rounded),
-              activeIcon: Icon(Icons.dashboard_rounded),
-              label: 'Accueil',
+              icon: const Icon(Icons.dashboard_rounded),
+              activeIcon: const Icon(Icons.dashboard_rounded),
+              label: AppLocalizations.get('home', langCode),
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.assignment_rounded),
-              activeIcon: Icon(Icons.assignment_rounded),
-              label: 'Examens',
+              icon: const Icon(Icons.assignment_rounded),
+              activeIcon: const Icon(Icons.assignment_rounded),
+              label: AppLocalizations.get('exams', langCode),
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.meeting_room_rounded),
-              activeIcon: Icon(Icons.meeting_room_rounded),
-              label: 'Salles',
+              icon: const Icon(Icons.meeting_room_rounded),
+              activeIcon: const Icon(Icons.meeting_room_rounded),
+              label: AppLocalizations.get('rooms', langCode),
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.calendar_today_rounded),
-              activeIcon: Icon(Icons.calendar_today_rounded),
-              label: 'Calendrier',
+              icon: const Icon(Icons.calendar_today_rounded),
+              activeIcon: const Icon(Icons.calendar_today_rounded),
+              label: AppLocalizations.get('calendar', langCode),
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.person_rounded),
-              activeIcon: Icon(Icons.person_rounded),
-              label: 'Profil',
+              icon: const Icon(Icons.person_rounded),
+              activeIcon: const Icon(Icons.person_rounded),
+              label: AppLocalizations.get('profile', langCode),
             ),
           ],
         ),

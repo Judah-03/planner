@@ -12,7 +12,7 @@ class ExamFilters {
 
   const ExamFilters({
     this.searchQuery = '',
-    this.selectedLevel = 'All',
+    this.selectedLevel = 'Tous',
     this.status = ExamStatusFilter.all,
   });
 
@@ -41,7 +41,7 @@ final filteredExamsProvider = Provider<List<Exam>>((ref) {
                          exam.level.toLowerCase().contains(filters.searchQuery.toLowerCase());
     
     // 2. Filtre par niveau (Ex: L3)
-    final matchesLevel = filters.selectedLevel == 'All' || exam.level == filters.selectedLevel;
+    final matchesLevel = filters.selectedLevel == 'Tous' || exam.level == filters.selectedLevel;
 
     // 3. Filtre par statut (Upcoming / History)
     bool matchesStatus = true;

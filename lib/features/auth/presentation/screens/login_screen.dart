@@ -115,7 +115,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
-                        onPressed: () {},
+                        onPressed: () {
+                          _showForgotPasswordBottomSheet(context);
+                        },
                         child: const Text(
                           'Mot de passe oublié ?',
                           style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
@@ -143,12 +145,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          padding: const EdgeInsets.all(12),
+          padding: EdgeInsets.zero,
           decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(20),
           ),
-          child: const Icon(Icons.school_rounded, color: AppColors.primary, size: 40),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Image.asset(
+              'logo/LogoPlannerJ.png',
+              width: 64,
+              height: 64,
+              fit: BoxFit.cover,
+            ),
+          ),
         ),
         const SizedBox(height: 32),
         const Text(
@@ -310,6 +319,83 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           child: const Text('S\'inscrire', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w900)),
         ),
       ],
+    );
+  }
+
+  void _showForgotPasswordBottomSheet(BuildContext context) {
+    final emailController = TextEditingController();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0D1F1A),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Mot de passe oublié ?',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Entrez votre adresse email associée à votre compte pour recevoir un lien de réinitialisation.',
+                  style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+                ),
+                const SizedBox(height: 24),
+                _buildInputField(
+                  controller: emailController,
+                  label: 'Adresse Email',
+                  hint: 'ex: etudiant@emit.mg',
+                  icon: Icons.email_outlined,
+                ),
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  height: 55,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Un lien de réinitialisation a été envoyé à votre adresse email !'),
+                          backgroundColor: AppColors.primary,
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    child: const Text('Envoyer le lien', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

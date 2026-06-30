@@ -29,10 +29,20 @@ class ExamsNotifier extends StateNotifier<List<Exam>> {
   Future<void> addExam(Exam exam) async {
     try {
       await ApiService.createExam(exam.toJson());
-      await NotificationService.scheduleExamNotification(exam);
-      await _loadExams(); // Recharger depuis le serveur pour être sûr
+      await _loadExams(); // Mettre à jour l'état quoiqu'il arrive
+      
+      try {
+        await NotificationService.showInstantNotification(
+          'Examen enregistré',
+          'L\'examen de ${exam.subject} a été ajouté avec succès.',
+        );
+        await NotificationService.scheduleExamNotification(exam);
+      } catch (e) {
+        print('Erreur notifications: $e');
+      }
     } catch (e) {
-      // Optionnel: Gérer l'erreur (ex: SnackBAR)
+      print('Erreur API addExam: $e');
+      rethrow;
     }
   }
 
@@ -53,7 +63,7 @@ class ExamsNotifier extends StateNotifier<List<Exam>> {
           if (exam.id == updatedExam.id) updatedExam else exam
       ];
     } catch (e) {
-      // Gérer l'erreur
+      rethrow;
     }
   }
 }

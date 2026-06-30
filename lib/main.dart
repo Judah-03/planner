@@ -5,6 +5,7 @@ import 'package:planner/presentation/providers/theme_provider.dart';
 import 'package:planner/core/network/api_service.dart';
 import 'package:planner/core/services/notification_service.dart';
 import 'package:planner/features/auth/presentation/screens/splash_screen.dart';
+import 'package:planner/features/profile/presentation/providers/language_provider.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
@@ -26,9 +27,10 @@ class PlannerApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeProvider);
+    final langCode = ref.watch(languageProvider);
 
     return MaterialApp(
-      title: 'Planner',
+      title: 'ExamPlannerJ',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
@@ -41,7 +43,21 @@ class PlannerApp extends ConsumerWidget {
       supportedLocales: const [
         Locale('fr', 'FR'),
       ],
-      home: const SplashScreen(),
+      home: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 500),
+        switchInCurve: Curves.easeInOut,
+        switchOutCurve: Curves.easeInOut,
+        child: const SplashScreen(key: ValueKey('splash')),
+      ),
+      builder: (context, child) {
+        return AnimatedSwitcher(
+          duration: const Duration(milliseconds: 500),
+          child: KeyedSubtree(
+            key: ValueKey('${themeMode.toString()}_$langCode'),
+            child: child ?? const SizedBox.shrink(),
+          ),
+        );
+      },
     );
   }
 }

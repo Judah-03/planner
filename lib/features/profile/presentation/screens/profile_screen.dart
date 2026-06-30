@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:planner/core/constants/app_colors.dart';
@@ -6,9 +7,12 @@ import 'package:planner/presentation/providers/theme_provider.dart';
 import 'package:planner/features/auth/presentation/providers/user_provider.dart';
 import 'package:planner/features/auth/presentation/screens/login_screen.dart';
 import 'package:planner/core/network/api_service.dart';
-import 'package:planner/core/services/notification_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:planner/features/profile/presentation/screens/personal_details_screen.dart';
+import 'package:planner/features/profile/presentation/screens/privacy_screen.dart';
+import 'package:planner/features/profile/presentation/screens/contact_school_sheet.dart';
+import 'package:planner/features/profile/presentation/providers/language_provider.dart';
+import 'package:planner/core/localization/app_localizations.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -18,6 +22,7 @@ class ProfileScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final user = ref.watch(userProvider);
+    final langCode = ref.watch(languageProvider);
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
@@ -28,9 +33,7 @@ class ProfileScreen extends ConsumerWidget {
             children: [
               _buildHeader(context, ref, user),
               const SizedBox(height: 32),
-              _buildStatsBox(context),
-              const SizedBox(height: 32),
-              _buildMenuSection(context, ref, isDark),
+              _buildMenuSection(context, ref, isDark, langCode),
               const SizedBox(height: 40),
             ],
           ),
@@ -40,9 +43,59 @@ class ProfileScreen extends ConsumerWidget {
   }
 
   Future<void> _pickImage(BuildContext context, WidgetRef ref) async {
+    final ImageSource? source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Changer la photo de profil',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 24),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.camera_alt_rounded, color: AppColors.primary),
+              ),
+              title: const Text('Prendre une photo', style: TextStyle(fontWeight: FontWeight.w600)),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            const SizedBox(height: 8),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.secondary.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.photo_library_rounded, color: AppColors.secondary),
+              ),
+              title: const Text('Choisir depuis la galerie', style: TextStyle(fontWeight: FontWeight.w600)),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null) return;
+
     try {
       final ImagePicker picker = ImagePicker();
-      final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+      final XFile? image = await picker.pickImage(source: source);
       
       if (image != null) {
         final imageUrl = await ApiService.uploadProfileImage(image.path);
@@ -80,10 +133,16 @@ class ProfileScreen extends ConsumerWidget {
         ? user.fullName.split(' ').map((e) => e[0]).take(2).join().toUpperCase()
         : '??';
 
-    // The backend URL for static files
-    final imageFullUrl = user?.profileImage != null 
-        ? '${ApiService.serverBaseUrl}${user!.profileImage}' 
-        : null;
+    // Support both local file paths and network URLs
+    ImageProvider? profileImageProvider;
+    if (user?.profileImage != null && user!.profileImage!.isNotEmpty) {
+      final path = user.profileImage!;
+      if (path.startsWith('http')) {
+        profileImageProvider = NetworkImage(path);
+      } else if (File(path).existsSync()) {
+        profileImageProvider = FileImage(File(path));
+      }
+    }
 
     return Padding(
       padding: const EdgeInsets.only(top: 40, left: 24, right: 24),
@@ -109,8 +168,8 @@ class ProfileScreen extends ConsumerWidget {
                   child: CircleAvatar(
                     radius: 50,
                     backgroundColor: Colors.white,
-                    backgroundImage: imageFullUrl != null ? NetworkImage(imageFullUrl) : null,
-                    child: imageFullUrl == null 
+                    backgroundImage: profileImageProvider,
+                    child: profileImageProvider == null 
                       ? Text(
                           initials,
                           style: const TextStyle(
@@ -164,81 +223,15 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatsBox(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(32),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
-            ),
-          ],
-          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _buildStatItem('12', 'Restants'),
-            _buildDivider(),
-            _buildStatItem('3.8', 'Moyenne'),
-            _buildDivider(),
-            _buildStatItem('95%', 'Présence'),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatItem(String value, String label) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.w900,
-            color: AppColors.primary,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            color: Colors.grey.shade500,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDivider() {
-    return Container(
-      height: 40,
-      width: 2,
-      decoration: BoxDecoration(
-        color: Colors.grey.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(2),
-      ),
-    );
-  }
-
-  Widget _buildMenuSection(BuildContext context, WidgetRef ref, bool isDark) {
+  Widget _buildMenuSection(BuildContext context, WidgetRef ref, bool isDark, String langCode) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Paramètres',
-            style: TextStyle(
+          Text(
+            AppLocalizations.get('settings', langCode),
+            style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w900,
             ),
@@ -247,7 +240,7 @@ class ProfileScreen extends ConsumerWidget {
           _buildMenuTile(
             context,
             icon: Icons.person_outline_rounded,
-            title: 'Informations Personnelles',
+            title: AppLocalizations.get('personal_info', langCode),
             color: Colors.blue,
             onTap: () {
               Navigator.push(context, MaterialPageRoute(builder: (context) => const PersonalDetailsScreen()));
@@ -255,38 +248,77 @@ class ProfileScreen extends ConsumerWidget {
           ),
           _buildMenuTile(
             context,
-            icon: Icons.notifications_none_rounded,
-            title: 'Tester Notification',
-            color: Colors.orange,
+            icon: Icons.school_rounded,
+            title: AppLocalizations.get('contact_school', langCode),
+            color: Colors.deepPurple,
             onTap: () {
-              NotificationService.showInstantNotification(
-                'Test réussi ! 🎓',
-                'Votre système de notification est maintenant actif.',
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (context) => const ContactSchoolSheet(),
               );
             },
           ),
-          _buildThemeToggleTile(context, ref, isDark),
+          _buildThemeToggleTile(context, ref, isDark, langCode),
+          _buildLanguageToggleTile(context, ref, langCode),
           _buildMenuTile(
             context,
             icon: Icons.security_rounded,
-            title: 'Confidentialité',
+            title: AppLocalizations.get('privacy', langCode),
             color: Colors.green,
-            onTap: () {},
+            onTap: () {
+              Navigator.push(context, MaterialPageRoute(builder: (context) => const PrivacyScreen()));
+            },
           ),
           const SizedBox(height: 24),
           _buildMenuTile(
             context,
             icon: Icons.logout_rounded,
-            title: 'Se déconnecter',
+            title: AppLocalizations.get('logout', langCode),
             color: AppColors.error,
             onTap: () async {
-              await ApiService.logout();
-              ref.read(userProvider.notifier).state = null;
-              if (context.mounted) {
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (context) => const LoginScreen()),
-                  (route) => false,
-                );
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                  title: const Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 28),
+                      SizedBox(width: 12),
+                      Text('Déconnexion', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  content: const Text(
+                    'Êtes-vous sûr de vouloir vous déconnecter ?',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Annuler', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.error,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('Oui, me déconnecter', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              );
+
+              if (confirm == true) {
+                await ApiService.logout();
+                ref.read(userProvider.notifier).state = null;
+                if (context.mounted) {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (context) => const LoginScreen()),
+                    (route) => false,
+                  );
+                }
               }
             },
             hideArrow: true,
@@ -344,7 +376,7 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildThemeToggleTile(BuildContext context, WidgetRef ref, bool isDark) {
+  Widget _buildThemeToggleTile(BuildContext context, WidgetRef ref, bool isDark, String langCode) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -368,10 +400,10 @@ class ProfileScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: 16),
-          const Expanded(
+          Expanded(
             child: Text(
-              'Mode Sombre',
-              style: TextStyle(
+              AppLocalizations.get('dark_mode', langCode),
+              style: const TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
               ),
@@ -384,6 +416,55 @@ class ProfileScreen extends ConsumerWidget {
             },
             activeThumbColor: AppColors.primary,
             activeTrackColor: AppColors.primary.withValues(alpha: 0.3),
+            inactiveThumbColor: Colors.grey,
+            inactiveTrackColor: Colors.grey.withValues(alpha: 0.3),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLanguageToggleTile(BuildContext context, WidgetRef ref, String langCode) {
+    final isEn = langCode == 'en';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.grey.withValues(alpha: 0.05)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.purple.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              Icons.language_rounded,
+              color: Colors.purple,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Text(
+              AppLocalizations.get('language', langCode) + ' (FR/EN)',
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Switch(
+            value: isEn,
+            onChanged: (value) {
+              ref.read(languageProvider.notifier).toggleLanguage();
+            },
+            activeThumbColor: Colors.purple,
+            activeTrackColor: Colors.purple.withValues(alpha: 0.3),
             inactiveThumbColor: Colors.grey,
             inactiveTrackColor: Colors.grey.withValues(alpha: 0.3),
           ),

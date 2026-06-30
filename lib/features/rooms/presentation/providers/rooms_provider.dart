@@ -36,11 +36,11 @@ class RoomStatus {
     return RoomStatus(
       id: map['id'] as String,
       name: map['name'] as String,
-      building: map['building'] as String,
+      building: (map['building'] as String?) ?? '',
       isOccupied: map['is_occupied'] as bool,
-      nextExam: map['next_exam'],
-      nextTime: map['next_time'],
-      capacity: map['capacity'] as int,
+      nextExam: map['next_exam'] as String?,
+      nextTime: map['next_time'] as String?,
+      capacity: (map['capacity'] as int?) ?? 0,
     );
   }
 }
@@ -67,6 +67,20 @@ class RoomsNotifier extends StateNotifier<List<RoomStatus>> {
     await _loadRooms();
   }
 
+  Future<void> addRoom(RoomStatus room) async {
+    try {
+      await ApiService.createRoom({
+        'name': room.name,
+        'building': room.building,
+        'is_occupied': room.isOccupied,
+        'capacity': room.capacity,
+      });
+      await refresh();
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   Future<void> toggleOccupancy(String roomId) async {
     final roomIndex = state.indexWhere((r) => r.id == roomId);
     if (roomIndex == -1) return;
@@ -82,6 +96,28 @@ class RoomsNotifier extends StateNotifier<List<RoomStatus>> {
       ];
     } catch (e) {
       // Gérer l'erreur
+    }
+  }
+
+  Future<void> updateRoom(String roomId, String newName, String newBuilding, int newCapacity) async {
+    try {
+      await ApiService.updateRoom(roomId, {
+        'name': newName,
+        'building': newBuilding,
+        'capacity': newCapacity,
+      });
+      await refresh();
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<void> deleteRoom(String roomId) async {
+    try {
+      await ApiService.deleteRoom(roomId);
+      await refresh();
+    } catch (e) {
+      rethrow;
     }
   }
 }

@@ -5,8 +5,8 @@ exports.getRooms = async (req, res) => {
   try {
     const result = await db.query(`
       SELECT r.*, 
-      (SELECT e.subject FROM exams e WHERE e.room = r.name AND (e.exam_date + e.exam_time::time) > NOW() ORDER BY (e.exam_date + e.exam_time::time) ASC LIMIT 1) as next_exam,
-      (SELECT e.exam_time FROM exams e WHERE e.room = r.name AND (e.exam_date + e.exam_time::time) > NOW() ORDER BY (e.exam_date + e.exam_time::time) ASC LIMIT 1) as next_time
+      (SELECT e.subject FROM exams e WHERE e.room = r.name AND e.exam_date >= CURRENT_DATE ORDER BY e.exam_date ASC, e.exam_time ASC LIMIT 1) as next_exam,
+      (SELECT e.exam_time FROM exams e WHERE e.room = r.name AND e.exam_date >= CURRENT_DATE ORDER BY e.exam_date ASC, e.exam_time ASC LIMIT 1) as next_time
       FROM rooms r 
       ORDER BY r.name ASC
     `);

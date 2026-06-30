@@ -20,10 +20,10 @@ class UserData {
   factory UserData.fromJson(Map<String, dynamic> json) {
     return UserData(
       id: json['id'] as String,
-      fullName: json['full_name'] as String,
-      email: json['email'] as String,
-      studentId: json['student_id'] as String,
-      level: json['level'] as String,
+      fullName: (json['full_name'] as String?) ?? '',
+      email: (json['email'] as String?) ?? '',
+      studentId: (json['student_id'] as String?) ?? '',
+      level: (json['level'] as String?) ?? '',
       profileImage: json['profile_image'] as String?,
     );
   }

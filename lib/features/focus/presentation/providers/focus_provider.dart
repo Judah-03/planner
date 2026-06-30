@@ -4,13 +4,15 @@ import 'package:planner/core/network/api_service.dart';
 class FocusStats {
   final int todayMinutes;
   final int totalMinutes;
+  final int currentStreak;
 
-  FocusStats({required this.todayMinutes, required this.totalMinutes});
+  FocusStats({required this.todayMinutes, required this.totalMinutes, this.currentStreak = 0});
 
   factory FocusStats.fromJson(Map<String, dynamic> json) {
     return FocusStats(
       todayMinutes: json['today_minutes'] ?? 0,
       totalMinutes: json['total_minutes'] ?? 0,
+      currentStreak: json['current_streak'] ?? 0,
     );
   }
 }
@@ -33,7 +35,7 @@ class FocusNotifier extends StateNotifier<FocusStats?> {
     }
   }
 
-  Future<void> recordSession(int minutes, String type) async {
+  Future<void> addSession(int minutes, String type) async {
     try {
       await ApiService.createFocusSession(minutes, type);
       await loadStats();

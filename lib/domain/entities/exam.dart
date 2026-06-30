@@ -58,12 +58,12 @@ class Exam {
     return Exam(
       id: map['id'] as String,
       subject: map['subject'] as String,
-      date: DateTime.parse(map['exam_date'] ?? map['date'] as String),
-      time: map['exam_time'] ?? map['time'] as String,
-      room: map['room'] as String,
-      teacher: map['teacher'] as String,
-      duration: map['duration'] as String,
-      level: map['level'] as String,
+      date: DateTime.parse(map['exam_date'] as String),
+      time: (map['exam_time'] as String?) ?? (map['time'] as String?) ?? '',
+      room: (map['room'] as String?) ?? '',
+      teacher: (map['teacher'] as String?) ?? '',
+      duration: (map['duration'] as String?) ?? '',
+      level: (map['level'] as String?) ?? '',
     );
   }
 }

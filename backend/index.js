@@ -19,6 +19,7 @@ app.use('/api/exams', require('./routes/examRoutes'));
 app.use('/api/rooms', require('./routes/roomRoutes'));
 app.use('/api/results', require('./routes/resultRoutes'));
 app.use('/api/focus', require('./routes/focusRoutes'));
+app.use('/api/mail', require('./routes/mailRoutes'));
 
 // Routes de test
 app.get('/', (req, res) => {
@@ -39,6 +40,6 @@ app.get('/test-db', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`Le serveur tourne sur le port ${PORT}`);
 });

@@ -333,9 +333,7 @@ class _ExamsListScreenState extends ConsumerState<ExamsListScreen> with SingleTi
                   ),
                 );
               },
-              child: Hero(
-                tag: 'exam_card_${exam.id}',
-                child: IntrinsicHeight(
+              child: IntrinsicHeight(
                   child: Row(
                     children: [
                       Container(
@@ -416,7 +414,6 @@ class _ExamsListScreenState extends ConsumerState<ExamsListScreen> with SingleTi
                     ],
                   ),
                 ),
-              ),
             ),
           ),
         ),

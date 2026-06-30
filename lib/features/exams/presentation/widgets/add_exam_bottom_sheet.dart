@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:planner/core/constants/app_colors.dart';
 import 'package:planner/domain/entities/exam.dart';
 import 'package:planner/features/exams/presentation/providers/exams_provider.dart';
+import 'package:planner/features/rooms/presentation/providers/rooms_provider.dart';
 import 'package:uuid/uuid.dart';
 
 class AddExamBottomSheet extends ConsumerStatefulWidget {
@@ -19,8 +20,8 @@ class AddExamBottomSheet extends ConsumerStatefulWidget {
 class _AddExamBottomSheetState extends ConsumerState<AddExamBottomSheet> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _subjectController;
-  late TextEditingController _roomController;
   late TextEditingController _teacherController;
+  String? _selectedRoomName;
   
   late DateTime _selectedDate;
   late TimeOfDay _selectedTime;
@@ -36,8 +37,8 @@ class _AddExamBottomSheetState extends ConsumerState<AddExamBottomSheet> {
     final edit = widget.examToEdit;
     
     _subjectController = TextEditingController(text: edit?.subject ?? '');
-    _roomController = TextEditingController(text: edit?.room ?? '');
     _teacherController = TextEditingController(text: edit?.teacher ?? '');
+    _selectedRoomName = edit?.room;
     
     _selectedDate = edit?.date ?? widget.initialDate ?? DateTime.now().add(const Duration(days: 1));
     _selectedDuration = edit?.duration ?? '2 heures';
@@ -64,42 +65,134 @@ class _AddExamBottomSheetState extends ConsumerState<AddExamBottomSheet> {
   @override
   void dispose() {
     _subjectController.dispose();
-    _roomController.dispose();
     _teacherController.dispose();
     super.dispose();
   }
 
-  void _saveExam() {
+  void _saveExam() async {
     if (_formKey.currentState!.validate()) {
+      final selectedRoom = _selectedRoomName ?? '';
+      
+      // Conflict checking
+      if (selectedRoom.isNotEmpty) {
+        final rooms = ref.read(roomsProvider);
+        final isRoomGloballyOccupied = rooms.any((r) => r.name == selectedRoom && r.isOccupied);
+
+        if (isRoomGloballyOccupied) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(
+                'Erreur : Cette salle est actuellement marquée comme occupée !',
+                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)
+              ),
+              backgroundColor: AppColors.error,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          );
+          return; // Stop saving
+        }
+
+        final existingExams = ref.read(examsProvider);
+        
+        DateTime getStartTime(DateTime date, String timeStr) {
+           final cleanTime = timeStr.replaceAll(RegExp(r'[a-zA-Z\s]'), '');
+           final tParts = cleanTime.split(':');
+           int h = int.parse(tParts[0]);
+           final m = int.parse(tParts[1]);
+           if (timeStr.toLowerCase().contains('pm') && h < 12) h += 12;
+           if (timeStr.toLowerCase().contains('am') && h == 12) h = 0;
+           return DateTime(date.year, date.month, date.day, h, m);
+        }
+
+        DateTime getEndTime(DateTime date, String timeStr, String durationStr) {
+           final start = getStartTime(date, timeStr);
+           int durHours = 0;
+           if (durationStr.contains('heure')) {
+             final match = RegExp(r'\d+').firstMatch(durationStr);
+             if (match != null) {
+               durHours = int.parse(match.group(0)!);
+             }
+           }
+           return start.add(Duration(hours: durHours));
+        }
+
+        final newStart = getStartTime(_selectedDate, _selectedTime.format(context));
+        final newEnd = getEndTime(_selectedDate, _selectedTime.format(context), _selectedDuration);
+
+        final hasConflict = existingExams.any((e) {
+          if (e.room != selectedRoom) return false;
+          if (widget.examToEdit != null && e.id == widget.examToEdit!.id) return false;
+          
+          final eStart = getStartTime(e.date, e.time);
+          final eEnd = getEndTime(e.date, e.time, e.duration);
+          
+          return newStart.isBefore(eEnd) && eStart.isBefore(newEnd);
+        });
+
+        if (hasConflict) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(
+                'Erreur : Un examen parallèle est déjà prévu dans cette salle à cette heure !',
+                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)
+              ),
+              backgroundColor: AppColors.error,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          );
+          return; // Stop saving
+        }
+      }
+
       final exam = Exam(
         id: widget.examToEdit?.id ?? const Uuid().v4(),
         subject: _subjectController.text.trim(),
         date: _selectedDate,
         time: _selectedTime.format(context),
-        room: _roomController.text.trim(),
+        room: selectedRoom,
         teacher: _teacherController.text.trim(),
         duration: _selectedDuration,
         level: _selectedLevel,
       );
 
-      if (widget.examToEdit != null) {
-        ref.read(examsProvider.notifier).updateExam(exam);
-      } else {
-        ref.read(examsProvider.notifier).addExam(exam);
-      }
+      try {
+        if (widget.examToEdit != null) {
+          await ref.read(examsProvider.notifier).updateExam(exam);
+        } else {
+          await ref.read(examsProvider.notifier).addExam(exam);
+        }
 
-      Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            widget.examToEdit != null ? 'Examen mis à jour !' : 'Examen ajouté avec succès !',
-            style: const TextStyle(fontWeight: FontWeight.bold)
-          ),
-          backgroundColor: AppColors.primary,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
+        if (mounted) {
+          Navigator.of(context).pop();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                widget.examToEdit != null ? 'Examen mis à jour !' : 'Examen ajouté avec succès !',
+                style: const TextStyle(fontWeight: FontWeight.bold)
+              ),
+              backgroundColor: AppColors.primary,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Échec: ${e.toString().replaceAll('Exception:', '').trim()}',
+                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)
+              ),
+              backgroundColor: Colors.red.shade700,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -107,16 +200,18 @@ class _AddExamBottomSheetState extends ConsumerState<AddExamBottomSheet> {
     final pickedDate = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
-      firstDate: DateTime.now().subtract(const Duration(days: 365)),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      firstDate: DateTime(2024),
+      lastDate: DateTime.now().add(const Duration(days: 730)),
       locale: const Locale('fr', 'FR'),
       builder: (context, child) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.light(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
               primary: AppColors.primary,
               onPrimary: Colors.white,
-              onSurface: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
+              surface: isDark ? Colors.grey.shade900 : Colors.white,
+              onSurface: isDark ? Colors.white : Colors.black,
             ),
           ),
           child: child!,
@@ -136,12 +231,14 @@ class _AddExamBottomSheetState extends ConsumerState<AddExamBottomSheet> {
       context: context,
       initialTime: _selectedTime,
       builder: (context, child) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.light(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
               primary: AppColors.primary,
               onPrimary: Colors.white,
-              onSurface: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black,
+              surface: isDark ? Colors.grey.shade900 : Colors.white,
+              onSurface: isDark ? Colors.white : Colors.black,
             ),
           ),
           child: child!,
@@ -249,16 +346,40 @@ class _AddExamBottomSheetState extends ConsumerState<AddExamBottomSheet> {
               Row(
                 children: [
                   Expanded(
-                    child: _buildTextField(
-                      controller: _roomController,
-                      label: 'Salle',
-                      icon: Icons.meeting_room_rounded,
-                      validator: (value) => value == null || value.isEmpty ? 'Requis' : null,
+                    child: Consumer(
+                      builder: (context, ref, child) {
+                        final rooms = ref.watch(roomsProvider);
+                        final roomNames = rooms.map((r) => r.name).toList();
+                        
+                        final initialValue = (_selectedRoomName != null && roomNames.contains(_selectedRoomName)) 
+                            ? _selectedRoomName 
+                            : (roomNames.isNotEmpty ? roomNames.first : null);
+                            
+                        // Ensure we update state if initialValue changes and _selectedRoomName is null or not in list
+                        if (_selectedRoomName != initialValue) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (mounted) setState(() => _selectedRoomName = initialValue);
+                          });
+                        }
+                        
+                        return DropdownButtonFormField<String>(
+                          value: initialValue,
+                          items: roomNames.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                          onChanged: (value) => setState(() => _selectedRoomName = value),
+                          decoration: InputDecoration(
+                            labelText: 'Salle',
+                            prefixIcon: const Icon(Icons.meeting_room_rounded, color: AppColors.primary),
+                            filled: true,
+                            fillColor: Colors.grey.withValues(alpha: 0.08),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                          ),
+                          validator: (value) => value == null || value.isEmpty ? 'Requis' : null,
+                        );
+                      }
                     ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
-                    flex: 2,
                     child: _buildTextField(
                       controller: _teacherController,
                       label: 'Enseignant',
@@ -331,7 +452,7 @@ class _AddExamBottomSheetState extends ConsumerState<AddExamBottomSheet> {
     required void Function(String?) onChanged,
   }) {
     return DropdownButtonFormField<String>(
-      initialValue: value,
+      value: value,
       items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
       onChanged: onChanged,
       decoration: InputDecoration(

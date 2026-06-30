@@ -15,7 +15,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _nameController = TextEditingController();
   final _studentIdController = TextEditingController();
   final _branchController = TextEditingController();
-  final _levelController = TextEditingController();
+  String? _selectedLevel;
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
   bool _obscurePassword = true;
@@ -27,7 +27,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _nameController.dispose();
     _studentIdController.dispose();
     _branchController.dispose();
-    _levelController.dispose();
     super.dispose();
   }
 
@@ -42,7 +41,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'full_name': _nameController.text.trim(),
         'student_id': _studentIdController.text.trim(),
         'branch': _branchController.text.trim(),
-        'level': _levelController.text.trim(),
+        'level': _selectedLevel ?? '',
       });
       
       if (mounted) {
@@ -115,7 +114,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       children: [
                         Expanded(child: _buildInputField(_studentIdController, 'ID Étudiant', Icons.badge_outlined)),
                         const SizedBox(width: 16),
-                        Expanded(child: _buildInputField(_levelController, 'Niveau', Icons.trending_up)),
+                        Expanded(child: _buildDropdownField()),
                       ],
                     ),
                     const SizedBox(height: 16),
@@ -167,6 +166,46 @@ class _RegisterScreenState extends State<RegisterScreen> {
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(vertical: 16),
             ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDropdownField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Niveau', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 12)),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          child: DropdownButtonFormField<String>(
+            initialValue: _selectedLevel,
+            dropdownColor: AppColors.backgroundDark,
+            icon: const Icon(Icons.arrow_drop_down, color: Colors.grey),
+            style: const TextStyle(color: Colors.white, fontSize: 15),
+            validator: (v) => v == null || v.isEmpty ? 'Requis' : null,
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.trending_up, color: AppColors.primary, size: 18),
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.symmetric(vertical: 16),
+            ),
+            items: ['L1', 'L2', 'L3', 'M1', 'M2'].map((level) {
+              return DropdownMenuItem(
+                value: level,
+                child: Text(level),
+              );
+            }).toList(),
+            onChanged: (value) {
+              setState(() {
+                _selectedLevel = value;
+              });
+            },
           ),
         ),
       ],

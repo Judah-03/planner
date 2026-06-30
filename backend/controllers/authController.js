@@ -274,6 +274,5 @@ exports.uploadImage = async (req, res) => {
   }
 };
 
-// Gardé pour la compatibilité (mais non utilisé dans le nouveau flux simple)
-exports.sendCode = async (req, res) => res.status(410).json({ error: 'Cette méthode est obsolète.' });
-exports.verifyCode = async (req, res) => res.status(410).json({ error: 'Cette méthode est obsolète.' });
+// Note: sendCode et verifyCode ne sont plus utilisés dans le flux d'inscription actuel.
+// L'inscription directe (register) est la méthode préférée.
